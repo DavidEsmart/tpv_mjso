@@ -1,0 +1,19 @@
+{
+  "name": "tpv_mjso",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "node index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DavidEsmart/tpv_mjso.git"
+  },
+  "author": "Moda Joven Shop Online",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/DavidEsmart/tpv_mjso/issues"
+  },
+  "homepage": "https://github.com/DavidEsmart/tpv_mjso#readme"
+}
