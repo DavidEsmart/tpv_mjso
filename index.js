@@ -1,16 +1,16 @@
-const { MongoClient } = require("mongodb")
+const { MongoClient, TopologyOpeningEvent } = require("mongodb")
 const express = require('express')
 const api = express()
 const cors = require('cors')
 const port = 3000
 
-const { craftearReferencia } = require("./utilities.js")
+const { craftearReferencia, parseBool } = require("./utilities.js")
 
 
 api.use(cors())
 api.use(express.json())
 
-const dbClient = new MongoClient("mongodb://127.0.0.1:27017");
+const dbClient = new MongoClient("mongodb://192.168.1.138:27017");
 const db = dbClient.db("tpv_mjso")
 
 const ProductosCollection = db.collection("Productos")
@@ -18,17 +18,22 @@ const SettingsCollection = db.collection("Settings")
 const VentasCollection = db.collection("Ventas")
 
 
+api.get("/", (req, res) => {
+  res.send({"message":"En línea"})
+})
+
 // Lee y devuelve datos sobre un producto
-// localhost:3000/producto?producto=0
-api.get("/producto", async (req, res) => {
+// localhost:3000/producto?referencia=0
+api.get("/producto/ver", async (req, res) => {
   // Comprueba que es un numero
   var productoID
+  var referencia = req.query.referencia
   try {
-    if(!req.query.producto){
+    if(!referencia){
       return
     } 
     else {
-      productoID = parseInt(req.query.producto)
+      productoID = parseInt(referencia)
     }
   } 
   catch (error) {
@@ -50,13 +55,13 @@ api.get("/producto", async (req, res) => {
 })
 
 // Lee la venta segun su referencia especificado
-// localhost:3000/venta?venta=0
-api.get("/venta", async (req, res) => {
+// localhost:3000/venta?referencia=0
+api.get("/venta/ver", async (req, res) => {
   // Comprueba que es un numero
   var ventaID
   try {
-    if(!req.query.venta) return
-    ventaID = parseInt(req.query.venta)
+    if(!req.query.referencia) return
+    ventaID = parseInt(req.query.referencia)
   } 
   catch (error) {
     console.error(error)
@@ -77,8 +82,8 @@ api.get("/venta", async (req, res) => {
 })
 
 // Anade un producto a la base de datos
-api.post("/producto", async (req, res) => {
-  var referencia = unixTimestamp()
+api.post("/producto/crear", async (req, res) => {
+  var referencia = craftearReferencia()
 
   var nombre = req.query.nombre
   var precio = req.query.precio
@@ -115,8 +120,8 @@ api.post("/producto", async (req, res) => {
 })
 
 
-// Anade una BASE de venta a la base de datos
-api.post("/venta", async (req, res) => {
+// Crea una BASE de venta a la base de datos
+api.post("/venta/crear", async (req, res) => {
   const referencia = craftearReferencia()
 
   var fecha = req.query.fecha
@@ -156,7 +161,7 @@ api.post("/venta", async (req, res) => {
 })
 
 // Agrega pagos a una venta base
-api.post("/venta_pago", async (req, res) => {
+api.post("/venta/add_pago", async (req, res) => {
   var referencia = req.query.referencia
   var metodo = req.query.metodo
   var cantidad = req.query.cantidad
@@ -191,7 +196,7 @@ api.post("/venta_pago", async (req, res) => {
 
 
 // Añade un producto a la venta base
-api.post("/venta_producto", async (req, res) => {
+api.post("/venta/add_producto", async (req, res) => {
   var referencia = req.query.referencia
   var referencia_producto = req.query.referencia_producto
   var nombre = req.query.nombre
@@ -212,8 +217,10 @@ api.post("/venta_producto", async (req, res) => {
     cantidad = parseInt(cantidad)
     referencia = parseInt(referencia)
     precio = parseFloat(precio)
+    referencia_producto = parseInt(referencia_producto)
   } catch (error) {
-    console.error(error)
+    res.status(422).send({"message":"Datos malformados"})
+    return
   }
 
   const nuevoProducto = {
@@ -227,12 +234,110 @@ api.post("/venta_producto", async (req, res) => {
 
   var ventaAntigua = await VentasCollection.findOne({"Referencia":referencia})
 
+  if(!ventaAntigua){
+    res.status(404).send({"message":"La venta no existe"})
+    return
+  }
+  
   ventaAntigua.Productos.push(nuevoProducto)
 
   await VentasCollection.findOneAndReplace({"Referencia":referencia},ventaAntigua)
 
   res.send(ventaAntigua)
+})
 
+
+// localhost:3000/editar_producto?referencia_compra=0&referencia_producto....
+// referencia_venta
+// referencia_producto
+// ...
+//     - Devuelto
+//     - Fecha devolucion
+
+
+api.post('/venta/editar_producto', async (req, res) => {
+  var referencia = req.query.referencia
+  var referencia_producto = req.query.referencia_producto
+  var cantidad = req.query.cantidad
+  var devuelto = req.query.devuelto
+  var precio = req.query.precio
+  var fechaDevolucion = req.query.fecha_devolucion
+
+  if(!(referencia && cantidad && precio && referencia_producto)){
+    return
+  }
+
+  
+  // Intenta convertir todo lo posible a int
+  try {
+    referencia = parseInt(referencia)
+    referencia_producto = parseInt(referencia_producto)
+    cantidad = parseInt(cantidad)
+    precio = parseFloat(precio)
+    devuelto = parseBool(devuelto)
+  } catch (error) {
+    res.status(422).send({"message":"Datos invalido"})
+  }
+
+
+  if(!devuelto){
+    fechaDevolucion = null
+  }
+
+  // Obtiene la venta antigua
+  var ventaAntigua = await VentasCollection.findOne({"Referencia":referencia})
+
+  // Si no existe la venta lo notificara
+  if(!ventaAntigua){
+    res.status(404).send({"message":"La venta no existe"})
+    return
+  }
+
+  // Encuentra el producto dentro de la venta
+  var productoAntiguo = await ventaAntigua.Productos.filter(item => item.Referencia == referencia_producto)[0]
+  var productoAntiguoIdx = ventaAntigua.Productos.findIndex(item => item.Referencia == referencia_producto, 1)
+
+  if(!productoAntiguo){
+    res.status(404).send({"message":"El producto no se ha encontrado"})
+    return
+  }
+
+  
+  productoAntiguo.Precio = precio
+  productoAntiguo.Devuelto = devuelto
+  productoAntiguo.Cantidad = cantidad
+  productoAntiguo.Fecha_Devolucion = fechaDevolucion
+  
+  
+  
+  ventaAntigua.Productos[productoAntiguoIdx] = productoAntiguo
+  
+
+  await VentasCollection.findOneAndReplace({"Referencia": referencia}, ventaAntigua)
+
+  res.send(ventaAntigua)
+
+})
+
+
+// Borra una venta
+// localhost:3000/venta/borrar?referencia=189232982
+api.post("/venta/borrar", async (req, res) => {
+  var referencia = req.query.referencia
+
+  if(!referencia) {
+    res.status(404).send({"message":"Falta la referencia de la venta"})
+  }
+
+  try {
+    referencia = parseInt(referencia)
+  } catch (error) {
+    res.status(422).send({"message":"Referencia no valida"})
+  }
+
+  var venta = await VentasCollection.findOneAndDelete({"Referencia" :referencia})
+
+  res.send({"message":"Hecho"})
 })
 
 
