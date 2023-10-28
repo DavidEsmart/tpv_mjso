@@ -1,0 +1,39 @@
+{
+    "_id": {
+      "$oid": "653c22d1b4e9b4234f528a7b"
+    },
+    "Referencia": 0,
+    "Fecha": "01/01/2024",
+    "IVA": 20,
+    "Coste": 50,
+    "Metodo_pago": "Mixto",
+    "Pagos": [
+      {
+        "Metodo": "Tarjeta",
+        "Cantidad": 25
+      },
+      {
+        "Metodo": "Efectivo",
+        "Cantidad": 100
+      }
+    ],
+    "Cambio": 75,
+    "Productos": [
+      {
+        "Referencia": 1,
+        "Nombre": "Camisa de rayas putera",
+        "Precio": 25,
+        "Devuelto": false,
+        "Fecha_Devolucion": "null",
+        "Cantidad":1
+      },
+      {
+        "Referencia": 69,
+        "Nombre": "Guantes Nylon para striptease",
+        "Precio": 25,
+        "Devuelto": true,
+        "Fecha_Devolucion": "40/01/2024",
+        "Cantidad":1
+      }
+    ]
+  }
